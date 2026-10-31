@@ -466,8 +466,9 @@ are NumPy archives that add the 80-channel spike matrix and the GPi power spectr
 
 ## Initial-submission code
 
-The scripts without "rev" in their names, and the checkpoints listed above as initial-submission,
-are the code of the initial submission. They implement the alternative training configuration that
+The repository as it stood at the initial submission is kept unchanged on the `v1-submission`
+branch; `main` holds the revised version. Within `main`, the scripts without "rev" in their names,
+and the checkpoints listed above as initial-submission, are the code of the initial submission. They implement the alternative training configuration that
 the Supplementary Information compares with the revised pipeline (section "Design of the Training
 Pipeline"). They also hold the edge-GPU comparison of the Supplementary Information
 (`benchmark_jetson_ann*.py`). The revised evaluation harness runs the initial-submission checkpoints
