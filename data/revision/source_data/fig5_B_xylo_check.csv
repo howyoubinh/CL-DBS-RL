@@ -1,0 +1,5 @@
+student,n_windows,joint_agreement,agreement_margin_ge_0.15,min_q_correlation,max_vmem_over_threshold,output_resets
+xn_s0.015_w1500,300,0.833,0.938,0.9826,0.599,0
+xn_s0.03_w1500,300,0.830,0.937,0.9822,0.904,0
+xn_s0.03_w500,300,0.810,0.927,0.9812,0.819,0
+xn_s0.03_w5000,300,0.850,0.944,0.9838,0.585,0

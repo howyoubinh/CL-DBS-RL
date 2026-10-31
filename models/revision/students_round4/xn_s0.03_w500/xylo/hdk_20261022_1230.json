@@ -1,0 +1,98 @@
+{
+ "run": "models/revision/students_round4/xn_s0.03_w500",
+ "hw_config": "models/revision/students_round4/xn_s0.03_w500/xylo/hw_config.json",
+ "n_windows": 5,
+ "when": "2026-10-22T12:26:53",
+ "xylosim_vs_fp32_agreement": 1.0,
+ "xylosim_carried_vs_fp32_agreement": 0.8,
+ "chip_state": "carried across windows (reset_state is a no-op in rockpool 3.0.1)",
+ "clocks": {
+  "12.5": {
+   "latency_s": {
+    "mean": 2.6818963484838605,
+    "median": 2.6791679430752993,
+    "max": 2.695235284976661
+   },
+   "power_W_inference": {
+    "Io": 0.00014344390937435386,
+    "Io_n": 1341,
+    "AnalogLogic": 1.2140745867477318e-05,
+    "AnalogLogic_n": 1341,
+    "DigitalLogic": 0.0011546049442170887,
+    "DigitalLogic_n": 1341
+   },
+   "power_W_idle": {
+    "Io": 6.837308483293598e-05,
+    "Io_n": 301,
+    "AnalogLogic": 1.2110051502058702e-05,
+    "AnalogLogic_n": 301,
+    "DigitalLogic": 0.0011453294851792475,
+    "DigitalLogic_n": 301
+   },
+   "energy_per_inference_J": 0.0030965307838372214,
+   "energy_per_100ms_window_J": 0.0030965307838372214,
+   "real_time": false,
+   "chip_vs_xylosim_agreement": 0.8,
+   "chip_vs_xylosim_exact_q_fraction": 0.0,
+   "chip_vs_fp32_agreement": 0.6
+  },
+  "25.0": {
+   "latency_s": {
+    "mean": 2.660356065444648,
+    "median": 2.6624813843518496,
+    "max": 2.666619815863669
+   },
+   "power_W_inference": {
+    "Io": 0.00020827878417488507,
+    "Io_n": 1331,
+    "AnalogLogic": 1.2112697565296979e-05,
+    "AnalogLogic_n": 1331,
+    "DigitalLogic": 0.002055588493085243,
+    "DigitalLogic_n": 1331
+   },
+   "power_W_idle": {
+    "Io": 0.00012972036133465485,
+    "Io_n": 300,
+    "AnalogLogic": 1.2077019445260226e-05,
+    "AnalogLogic_n": 300,
+    "DigitalLogic": 0.0020478756257850932,
+    "DigitalLogic_n": 300
+   },
+   "energy_per_inference_J": 0.00546859731563755,
+   "energy_per_100ms_window_J": 0.00546859731563755,
+   "real_time": false,
+   "chip_vs_xylosim_agreement": 0.8,
+   "chip_vs_xylosim_exact_q_fraction": 0.0,
+   "chip_vs_fp32_agreement": 0.6
+  },
+  "50.0": {
+   "latency_s": {
+    "mean": 2.6485731583088636,
+    "median": 2.6463068248704076,
+    "max": 2.6556062567979097
+   },
+   "power_W_inference": {
+    "Io": 0.000335306240168323,
+    "Io_n": 1325,
+    "AnalogLogic": 1.2109687123154072e-05,
+    "AnalogLogic_n": 1325,
+    "DigitalLogic": 0.003855506755664828,
+    "DigitalLogic_n": 1325
+   },
+   "power_W_idle": {
+    "Io": 0.0002381672033672925,
+    "Io_n": 301,
+    "AnalogLogic": 1.2076839416126991e-05,
+    "AnalogLogic_n": 301,
+    "DigitalLogic": 0.0038507411377336374,
+    "DigitalLogic_n": 301
+   },
+   "energy_per_inference_J": 0.010211591704732353,
+   "energy_per_100ms_window_J": 0.010211591704732353,
+   "real_time": false,
+   "chip_vs_xylosim_agreement": 0.8,
+   "chip_vs_xylosim_exact_q_fraction": 0.0,
+   "chip_vs_fp32_agreement": 0.6
+  }
+ }
+}

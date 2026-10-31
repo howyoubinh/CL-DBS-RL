@@ -1,0 +1,485 @@
+# Experiment manifest. Run with: python scripts/run_rev.py {list|show|run} <entry>
+#
+# Each entry: description, status, a command template whose {placeholders} come from the grid
+# (plus {out} = outputs), the output folder, optional 'expect' (output file per job, for
+# --only-missing), optional 'after' (analysis), and parallelism/GPUs. Some steps run as standalone
+# run_rev_*.py scripts outside this registry (see README.md). Seeds are always explicit.
+#
+# Evaluation patients (seeds) used everywhere: 42,123,456,789,1024,2048,3141,5678,8192,9999.
+# Training patients for new teachers: 101, 202, 303 (disjoint from the evaluation set).
+
+constant_stim:
+  status: done
+  description: Constant open-loop stimulation at the SNN operating point vs the published teacher
+  outputs: data/revision/constant_stim
+  template: python scripts/run_rev_constant_stim.py --protocol {protocol} --condition {condition} --seed {seed} {extra} --out {out}
+  expect: "{out}/{protocol}_{condition}_seed{seed}.json"
+  grid:
+    - {protocol: cycling, condition: [SNN, Constant, cDBS, Unstimulated], seed: [42, 123, 456, 789, 1024], extra: ""}
+    - {protocol: cycling, condition: [SNN, Constant, cDBS, Unstimulated], seed: [1, 2, 3], extra: "--unseeded", _expect: "{out}/{protocol}_{condition}_rep{seed}_unseeded.json"}
+    - {protocol: acute, condition: [Unstimulated, SNN, Constant, ConstantMaxAmp], seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], extra: ""}
+  after:
+    - python scripts/analyze_rev_constant_stim.py {out}
+  parallel: 22
+
+teachers_round1:
+  status: dropped  # stopped at ~6% of training; superseded by teachers_round2 (revised Q readout and decoder)
+  description: Retrain the teacher; tau_beta in {150 (control), 290, 310} x training patients 101/202/303
+  outputs: models/revision/teachers
+  template: python scripts/train_rev_teacher.py --tau-beta {tau} --patient-seed {patient} --run-name tau{tau}_p{patient}
+  expect: "{out}/tau{tau}_p{patient}/model.pth"
+  grid:
+    - {tau: [150, 290, 310], patient: [101, 202, 303]}
+  parallel: 9
+  gpus: [0, 1]
+
+teachers_round2:
+  status: done
+  description: Revised readout and decoder (--pipeline corrected). A = 100 ms tau 150 (readout change only); B = 1 s / 10 ms count bins, tau 477 (calibrated on training patients); C = 100 ms tau 290
+  outputs: models/revision/teachers_round2
+  template: python scripts/train_rev_teacher.py --pipeline corrected --tau-beta {tau} --window-ms {win} {binning} --patient-seed {patient} --run-name {arm}_p{patient} --out-root {out}
+  expect: "{out}/{arm}_p{patient}/model.pth"
+  # ordered so every arm has an early patient-101 result; tau 477 from data/revision/calibration/tau_1000ms.json
+  grid:
+    - {arm: A, tau: 150, win: 100, binning: "", patient: 101}
+    - {arm: B, tau: 477, win: 1000, binning: "--binning count", patient: 101}
+    - {arm: C, tau: 290, win: 100, binning: "", patient: 101}
+    - {arm: B, tau: 477, win: 1000, binning: "--binning count", patient: [202, 303]}
+    - {arm: A, tau: 150, win: 100, binning: "", patient: [202, 303]}
+    - {arm: C, tau: 290, win: 100, binning: "", patient: [202, 303]}
+  parallel: 4
+  gpus: [0, 1]
+
+eval_round2:
+  status: done
+  description: 40 s acute (10 patients) + 5 x 60 s cycling (5 patients) for the teachers_round2 teachers, the published teacher and baselines at 100 ms and 1 s
+  outputs: data/revision/eval_round2
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol {protocol} --seed {seed} --out {out}
+  grid:
+    - {protocol: acute, seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "",
+       ctrl: [published, "model:models/revision/teachers_round2/A_p101", "model:models/revision/teachers_round2/A_p202", "model:models/revision/teachers_round2/A_p303",
+              "model:models/revision/teachers_round2/B_p101", "model:models/revision/teachers_round2/B_p202", "model:models/revision/teachers_round2/B_p303",
+              "model:models/revision/teachers_round2/C_p101", "model:models/revision/teachers_round2/C_p202", "model:models/revision/teachers_round2/C_p303"]}
+    - {protocol: acute, seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: ["--window-ms 100", "--window-ms 1000"],
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "constant:180,0.06,250"]}
+    - {protocol: cycling, seed: [42, 123, 456, 789, 1024], win: "",
+       ctrl: [published, "model:models/revision/teachers_round2/A_p101", "model:models/revision/teachers_round2/A_p202", "model:models/revision/teachers_round2/A_p303",
+              "model:models/revision/teachers_round2/B_p101", "model:models/revision/teachers_round2/B_p202", "model:models/revision/teachers_round2/B_p303",
+              "model:models/revision/teachers_round2/C_p101", "model:models/revision/teachers_round2/C_p202", "model:models/revision/teachers_round2/C_p303"]}
+    - {protocol: cycling, seed: [42, 123, 456, 789, 1024], win: ["--window-ms 100", "--window-ms 1000"],
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "constant:180,0.06,250"]}
+  parallel: 12
+
+obs_collect:
+  status: done
+  description: Observability check data, 80-neuron observation under stimulation (off, constant 212/250, cDBS, random settings), PD and healthy, 3 training + 5 evaluation patients, 60 s each, fixed networks
+  outputs: data/revision/obs
+  template: python scripts/run_rev_obs_collect.py --seed {seed} --pd {pd} --condition {cond} --out {out}
+  expect: "{out}/obs_{cond}_*_seed{seed}.npz"
+  grid:
+    - {seed: [101, 202, 303, 42, 123, 456, 789, 1024], pd: [0, 1], cond: [unstim, c212, c250, cdbs, random]}
+  parallel: 22
+
+headroom_oracle:
+  status: done
+  description: Headroom check, cycling 5 x 60 s, oracle (stimulate in PD blocks only, true state) vs constant, cDBS and unstimulated, 100 ms and 1 s windows; references rerun here to confirm they reproduce eval_round2
+  outputs: data/revision/headroom
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024], win: ["--window-ms 100", "--window-ms 1000"],
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "constant:180,0.06,250", "oracle:180,0.06,212", "oracle:180,0.06,250", "oracle:130,0.3,300"]}
+  parallel: 22
+
+duty_cycle:
+  status: done
+  description: Duty-cycle loophole check for the smoothed (1 s averaged beta) reward of --env round3, PD, 30 s, 5 evaluation patients, 180 Hz / 0.06 ms at 212 and 250 uA
+  outputs: data/revision/duty
+  template: python scripts/run_rev_duty_cycle.py --seed {seed} --amp {amp} --pattern {pattern} --out {out}
+  expect: "{out}/duty_{pattern}_a{amp}_seed{seed}.npz"
+  grid:
+    - {seed: [42, 123, 456, 789, 1024], amp: [212, 250], pattern: [steady, d5_5, d3_7, d7_3, d2_8, d10_10, d1_1]}
+  parallel: 22
+
+teachers_round3:
+  status: done  # screened in eval_round3: spiking Q readout; the policies did not adapt
+  description: "Revised readout and decoder (--pipeline corrected), 100 ms, --env round3: reward on 1 s-averaged beta (tau 290, training-patient calibrated), energy normalised by max RMS. R = reward changes only (published curriculum, 50-step episodes); RT = + one state switch per episode and random start setting (100-step episodes)"
+  outputs: models/revision/teachers_round3
+  template: python scripts/train_rev_teacher.py --pipeline corrected --env round3 --tau-beta 290 --beta-smooth 10 --energy-norm max {extra} --patient-seed {patient} --run-name {arm}_p{patient} --out-root {out}
+  expect: "{out}/{arm}_p{patient}/model.pth"
+  grid:
+    - {arm: R, extra: "--max-steps 50", patient: 101}
+    - {arm: RT, extra: "--transitions --random-start --max-steps 100", patient: 101}
+    - {arm: R, extra: "--max-steps 50", patient: [202, 303]}
+    - {arm: RT, extra: "--transitions --random-start --max-steps 100", patient: [202, 303]}
+  parallel: 6
+  gpus: [0, 1]
+
+eval_round3:
+  status: done
+  description: "Screening of the teachers_round3 teachers (R, RT x 3 training patients): 40 s acute (10 patients) + 5 x 60 s cycling (5 patients) at 100 ms, with the references and the oracle in the same folder"
+  outputs: data/revision/eval_round3
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol {protocol} --seed {seed} --out {out}
+  grid:
+    - {protocol: acute, seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "",
+       ctrl: ["model:models/revision/teachers_round3/R_p101", "model:models/revision/teachers_round3/R_p202", "model:models/revision/teachers_round3/R_p303",
+              "model:models/revision/teachers_round3/RT_p101", "model:models/revision/teachers_round3/RT_p202", "model:models/revision/teachers_round3/RT_p303"]}
+    - {protocol: acute, seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "--window-ms 100",
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "constant:180,0.06,250"]}
+    - {protocol: cycling, seed: [42, 123, 456, 789, 1024], win: "",
+       ctrl: ["model:models/revision/teachers_round3/R_p101", "model:models/revision/teachers_round3/R_p202", "model:models/revision/teachers_round3/R_p303",
+              "model:models/revision/teachers_round3/RT_p101", "model:models/revision/teachers_round3/RT_p202", "model:models/revision/teachers_round3/RT_p303"]}
+    - {protocol: cycling, seed: [42, 123, 456, 789, 1024], win: "--window-ms 100",
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "constant:180,0.06,250", "oracle:180,0.06,212", "oracle:180,0.06,250"]}
+  parallel: 16
+
+teachers_round4:
+  status: done  # screened in eval_round4
+  description: "teachers_round3 reward + non-spiking Q readout (out_threshold 1e6, auto q_scale, rewards / 3000); teachers_round3 used a spiking readout. R4 = published curriculum (50-step episodes); RT4 = + one state switch per episode and random start (100-step episodes); RTS4 = RT4 + the stimulation setting as 3 input channels"
+  outputs: models/revision/teachers_round4
+  template: python scripts/train_rev_teacher.py --pipeline corrected --env round3 --tau-beta 290 --beta-smooth 10 --energy-norm max --out-threshold 1e6 --reward-scale 3000 --q-scale auto {extra} --patient-seed {patient} --run-name {arm}_p{patient} --out-root {out}
+  expect: "{out}/{arm}_p{patient}/model.pth"
+  grid:
+    - {arm: RTS4, extra: "--transitions --random-start --max-steps 100 --setting-input", patient: [101, 202, 303]}
+    - {arm: RT4, extra: "--transitions --random-start --max-steps 100", patient: [101, 202, 303]}
+    - {arm: R4, extra: "--max-steps 50", patient: [101, 202, 303]}
+  parallel: 9
+  gpus: [0, 1]
+
+eval_round4:
+  status: done
+  description: "Screening of the teachers_round4 teachers (R4, RT4, RTS4 x 3 training patients): 40 s acute (10 patients) + 5 x 60 s cycling (5 patients) at 100 ms; references and oracle copied from eval_round3"
+  outputs: data/revision/eval_round4
+  template: python scripts/run_rev_eval.py --controller {ctrl} --protocol {protocol} --seed {seed} --out {out}
+  grid:
+    - {protocol: acute, seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999],
+       ctrl: ["model:models/revision/teachers_round4/R4_p101", "model:models/revision/teachers_round4/R4_p202", "model:models/revision/teachers_round4/R4_p303",
+              "model:models/revision/teachers_round4/RT4_p101", "model:models/revision/teachers_round4/RT4_p202", "model:models/revision/teachers_round4/RT4_p303",
+              "model:models/revision/teachers_round4/RTS4_p101", "model:models/revision/teachers_round4/RTS4_p202", "model:models/revision/teachers_round4/RTS4_p303"]}
+    - {protocol: cycling, seed: [42, 123, 456, 789, 1024],
+       ctrl: ["model:models/revision/teachers_round4/R4_p101", "model:models/revision/teachers_round4/R4_p202", "model:models/revision/teachers_round4/R4_p303",
+              "model:models/revision/teachers_round4/RT4_p101", "model:models/revision/teachers_round4/RT4_p202", "model:models/revision/teachers_round4/RT4_p303",
+              "model:models/revision/teachers_round4/RTS4_p101", "model:models/revision/teachers_round4/RTS4_p202", "model:models/revision/teachers_round4/RTS4_p303"]}
+  parallel: 12
+
+select_round4:
+  status: done  # RT4_p202 selected (analyze_rev_select.py)
+  description: "Teacher selection on fresh patients (cycling 5 x 60 s, seeds 2048..9999, never used for cycling before): RT4 x 3 training patients plus references; rule = highest PD/healthy charge ratio with PD-block beta in the healthy range"
+  outputs: data/revision/select_round4
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [2048, 3141, 5678, 8192, 9999], win: "",
+       ctrl: ["model:models/revision/teachers_round4/RT4_p101", "model:models/revision/teachers_round4/RT4_p202", "model:models/revision/teachers_round4/RT4_p303"]}
+    - {seed: [2048, 3141, 5678, 8192, 9999], win: "--window-ms 100",
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "constant:180,0.06,250", "oracle:180,0.06,250"]}
+  parallel: 12
+
+teachers_round4b:
+  status: done
+  description: "RT4 design: agent-seed replicates (agent seeds 2, 3 per training patient) and the energy ablation (delta 0: energy term removed, everything else identical)"
+  outputs: models/revision/teachers_round4
+  template: python scripts/train_rev_teacher.py --pipeline corrected --env round3 --tau-beta 290 --beta-smooth 10 --energy-norm max --out-threshold 1e6 --reward-scale 3000 --q-scale auto --transitions --random-start --max-steps 100 {extra} --patient-seed {patient} --run-name {arm}_p{patient}{suffix} --out-root {out}
+  expect: "{out}/{arm}_p{patient}{suffix}/model.pth"
+  grid:
+    - {arm: RT4, extra: "--agent-seed 2", suffix: "_s2", patient: [101, 202, 303]}
+    - {arm: RT4, extra: "--agent-seed 3", suffix: "_s3", patient: [101, 202, 303]}
+    - {arm: RT4d0, extra: "--delta 0", suffix: "", patient: [101, 202, 303]}
+  parallel: 9
+  gpus: [0, 1]
+
+baselines_round4:
+  status: done
+  description: "Matched non-spiking baselines on the RT4 environment and curriculum: MLP (mean80 = published ANN input; mean16 = the SNN's layer sizes), GRU and LSTM (raw80), 3 training patients, published hyperparameters"
+  outputs: models/revision/baselines_round4
+  template: python scripts/train_rev_baseline.py --arch {arch} --input {input} --env round3 --tau-beta 290 --beta-smooth 10 --energy-norm max --reward-scale 3000 --transitions --random-start --max-steps 100 --patient-seed {patient} --run-name {arch}_{input}_p{patient} --out-root {out}
+  expect: "{out}/{arch}_{input}_p{patient}/model.pth"
+  grid:
+    - {arch: mlp, input: [mean80, mean16], patient: [101, 202, 303]}
+    - {arch: [gru, lstm], input: raw80, patient: [101, 202, 303]}
+  parallel: 12
+  gpus: [0, 1]
+
+baselines_round4_sweep:
+  status: done
+  description: "Hyperparameter sweep for the two headline baselines (MLP-mean80 = published ANN input, GRU) on patient 101: lr x hidden around the published setting (lr 1e-3, hidden 128, already in baselines_round4)"
+  outputs: models/revision/baselines_round4
+  template: python scripts/train_rev_baseline.py --arch {arch} --input {input} --lr {lr} --hidden {hidden} --env round3 --tau-beta 290 --beta-smooth 10 --energy-norm max --reward-scale 3000 --transitions --random-start --max-steps 100 --patient-seed 101 --run-name {arch}_{input}_p101_lr{lr}_h{hidden} --out-root {out}
+  expect: "{out}/{arch}_{input}_p101_lr{lr}_h{hidden}/model.pth"
+  grid:
+    - {arch: mlp, input: mean80, lr: [0.0003, 0.003], hidden: [32, 128, 512]}
+    - {arch: mlp, input: mean80, lr: 0.001, hidden: [32, 512]}
+    - {arch: gru, input: raw80, lr: [0.0003, 0.003], hidden: [32, 128, 512]}
+    - {arch: gru, input: raw80, lr: 0.001, hidden: [32, 512]}
+  parallel: 6
+  gpus: [0, 1]
+
+eval_round4b:
+  status: done
+  description: "Screening of the RT4 replicates (agent seeds 2, 3) and the delta-0 ablation: 5 x 60 s cycling on the evaluation patients plus the selection patients (references already in eval_round4 / select_round4)"
+  outputs: data/revision/eval_round4b
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "",
+       ctrl: ["model:models/revision/teachers_round4/RT4_p101_s2", "model:models/revision/teachers_round4/RT4_p202_s2", "model:models/revision/teachers_round4/RT4_p303_s2",
+              "model:models/revision/teachers_round4/RT4_p101_s3", "model:models/revision/teachers_round4/RT4_p202_s3", "model:models/revision/teachers_round4/RT4_p303_s3",
+              "model:models/revision/teachers_round4/RT4d0_p101", "model:models/revision/teachers_round4/RT4d0_p202", "model:models/revision/teachers_round4/RT4d0_p303"]}
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "--window-ms 100", ctrl: [unstim, cdbs, "constant:180,0.06,212", "oracle:180,0.06,250"]}
+  parallel: 12
+
+eval_baselines_round4:
+  status: done
+  description: "Screening of the matched baselines (MLP mean80/mean16, GRU, LSTM x 3 patients): 5 x 60 s cycling on the evaluation + selection patients"
+  outputs: data/revision/eval_baselines_round4
+  template: python scripts/run_rev_eval.py --controller baseline:{run} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999],
+       run: ["models/revision/baselines_round4/mlp_mean80_p101", "models/revision/baselines_round4/mlp_mean80_p202", "models/revision/baselines_round4/mlp_mean80_p303",
+             "models/revision/baselines_round4/mlp_mean16_p101", "models/revision/baselines_round4/mlp_mean16_p202", "models/revision/baselines_round4/mlp_mean16_p303",
+             "models/revision/baselines_round4/gru_raw80_p101", "models/revision/baselines_round4/gru_raw80_p202", "models/revision/baselines_round4/gru_raw80_p303",
+             "models/revision/baselines_round4/lstm_raw80_p101", "models/revision/baselines_round4/lstm_raw80_p202", "models/revision/baselines_round4/lstm_raw80_p303"]}
+  parallel: 12
+
+students_round4:
+  status: done
+  description: "Distillation of the selected teacher RT4_p202 into sparse students on its own closed-loop windows (data/revision/distill/RT4_p202/windows.npz; 100 episodes x 100 steps, eps 0.1): rho x lambda grid at T = 4, 30 epochs, plus init-from-teacher at lambda 1500"
+  outputs: models/revision/students_round4
+  template: python scripts/train_rev_distill.py train --teacher models/revision/teachers_round4/RT4_p202 --windows data/revision/distill/RT4_p202/windows.npz --rho {rho} --lam {lam} --temperature 4 --epochs 30 {extra} --run-name {tag}_s{rho}_w{lam} --out-root {out}
+  expect: "{out}/{tag}_s{rho}_w{lam}/model.pth"
+  grid:
+    - {tag: scratch, extra: "", rho: [0.015, 0.03, 0.05], lam: [0, 500, 1500, 5000]}
+    - {tag: init, extra: "--init-from-teacher", rho: [0.015, 0.03, 0.05], lam: [1500]}
+  parallel: 5
+  gpus: [0, 1]
+
+students_round4_t:
+  status: done
+  description: "Distillation loss scale: the teacher's Q sit at 55-90 with top-2 gaps ~0.2, so at T = 4 the KL targets are nearly uniform (joint agreement caps at 0.6 for every lambda). Sweep T in {0.1, 0.5, 1} and a head-centred Q MSE term at the rho 0.03 / lambda 500 cell, 60 epochs"
+  outputs: models/revision/students_round4
+  template: python scripts/train_rev_distill.py train --teacher models/revision/teachers_round4/RT4_p202 --windows data/revision/distill/RT4_p202/windows.npz --rho 0.03 --lam 500 --temperature {T} --mse-weight {mse} --epochs 60 --run-name T{T}_m{mse}_s0.03_w500 --out-root {out}
+  expect: "{out}/T{T}_m{mse}_s0.03_w500/model.pth"
+  grid:
+    - {T: [0.1, 0.5, 1], mse: 0}
+    - {T: [0.5, 4], mse: 1}
+  parallel: 5
+  gpus: [0, 1]
+
+students_round4_nb:
+  status: done
+  description: "Xylo-native students (no linear biases, so the mapped graph is exact) distilled from RT4_p202: rho x lambda at T = 4 with the centred-Q MSE term, 60 epochs"
+  outputs: models/revision/students_round4
+  template: python scripts/train_rev_distill.py train --teacher models/revision/teachers_round4/RT4_p202 --windows data/revision/distill/RT4_p202/windows.npz --rho {rho} --lam {lam} --temperature 4 --mse-weight 1 --epochs 60 --no-linear-bias --run-name nb_s{rho}_w{lam} --out-root {out}
+  expect: "{out}/nb_s{rho}_w{lam}/model.pth"
+  grid:
+    - {rho: [0.015, 0.03, 0.05], lam: 500}
+    - {rho: 0.03, lam: [1500, 5000]}
+  parallel: 5
+  gpus: [0, 1]
+
+students_round4_xn:
+  status: done
+  description: "Xylo-native students, second iteration: no linear biases AND bit-shift-exact time constants (tau_mem 74.9 ms, tau_syn 34.8 ms = the decays the mapper assigns), so the mapped graph matches the chip's dynamics; rho 0.03 x lambda"
+  outputs: models/revision/students_round4
+  template: python scripts/train_rev_distill.py train --teacher models/revision/teachers_round4/RT4_p202 --windows data/revision/distill/RT4_p202/windows.npz --rho {rho} --lam {lam} --temperature 4 --mse-weight 1 --epochs 60 --no-linear-bias --xylo-taus --run-name xn_s{rho}_w{lam} --out-root {out}
+  expect: "{out}/xn_s{rho}_w{lam}/model.pth"
+  grid:
+    - {rho: 0.03, lam: [500, 1500, 5000]}
+    - {rho: 0.015, lam: 1500}
+  parallel: 4
+  gpus: [0, 1]
+
+eval_students_round4:
+  status: done
+  description: "Screening of the distilled students: 5 x 60 s cycling on the evaluation patients (teacher + references in eval_round4); acute for the chosen student afterwards"
+  outputs: data/revision/eval_students_round4
+  template: python scripts/run_rev_eval.py --controller model:models/revision/students_round4/{student} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024],
+       student: [scratch_s0.015_w0, scratch_s0.015_w500, scratch_s0.015_w1500, scratch_s0.015_w5000,
+                 scratch_s0.03_w0, scratch_s0.03_w500, scratch_s0.03_w1500, scratch_s0.03_w5000,
+                 scratch_s0.05_w0, scratch_s0.05_w500, scratch_s0.05_w1500, scratch_s0.05_w5000,
+                 init_s0.015_w1500, init_s0.03_w1500, init_s0.05_w1500,
+                 T0.1_m0_s0.03_w500, T0.5_m0_s0.03_w500, T1_m0_s0.03_w500, T0.5_m1_s0.03_w500, T4_m1_s0.03_w500,
+                 nb_s0.015_w500, nb_s0.03_w500, nb_s0.05_w500, nb_s0.03_w1500, nb_s0.03_w5000,
+                 xn_s0.03_w500, xn_s0.03_w1500, xn_s0.03_w5000, xn_s0.015_w1500]}
+  parallel: 12
+
+eval_xylosim_round4:
+  status: done
+  description: "Closed-loop efficacy of the quantized students on bit-accurate XyloSim (no host calibration): cycling on the evaluation patients; compare with the same students in fp32 (eval_students_round4)"
+  outputs: data/revision/eval_xylosim_round4
+  template: python scripts/run_rev_eval.py --controller xylosim:models/revision/students_round4/{student} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024], student: [xn_s0.03_w500, xn_s0.03_w1500, xn_s0.03_w5000, xn_s0.015_w1500]}
+  parallel: 10
+
+eval_baselines_sweep:
+  status: done
+  description: "Cycling screen of the MLP-mean80 / GRU hyperparameter sweep (patient 101) on the evaluation patients"
+  outputs: data/revision/eval_baselines_round4
+  template: python scripts/run_rev_eval.py --controller baseline:models/revision/baselines_round4/{run} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999],
+       run: [mlp_mean80_p101_lr0.0003_h32, mlp_mean80_p101_lr0.0003_h128, mlp_mean80_p101_lr0.0003_h512,
+             mlp_mean80_p101_lr0.003_h32, mlp_mean80_p101_lr0.003_h128, mlp_mean80_p101_lr0.003_h512,
+             mlp_mean80_p101_lr0.001_h32, mlp_mean80_p101_lr0.001_h512,
+             gru_raw80_p101_lr0.0003_h32, gru_raw80_p101_lr0.0003_h128, gru_raw80_p101_lr0.0003_h512,
+             gru_raw80_p101_lr0.003_h32, gru_raw80_p101_lr0.003_h128, gru_raw80_p101_lr0.003_h512,
+             gru_raw80_p101_lr0.001_h32, gru_raw80_p101_lr0.001_h512]}
+  parallel: 12
+
+final_cycling:
+  status: done
+  description: "Final seeded cycling (5 x 60 s, 100 ms) on the 10 patients, all conditions in one directory. Existing results (teacher, references, baselines, students on 42-1024, XyloSim student) are symlinked in from the earlier screens; this entry runs what is missing"
+  outputs: data/revision/final_cycling
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [2048, 3141, 5678, 8192, 9999], win: "", ctrl: ["model:models/revision/students_round4/xn_s0.03_w500", "xylosim:models/revision/students_round4/xn_s0.03_w500", "model:models/revision/students_round4/xn_s0.03_w5000"]}
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "", ctrl: [published, published_ann, published_gru]}
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "--window-ms 100", ctrl: ["dual_threshold:230,290", "integral:290,0.5,130,0.06"]}
+  parallel: 20
+
+final_acute:
+  status: done
+  description: "Final acute protocol (40 s PD, 100 ms) on the 10 patients, all conditions"
+  outputs: data/revision/final_acute
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol acute --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "",
+       ctrl: ["model:models/revision/teachers_round4/RT4_p202", "model:models/revision/teachers_round4/RT4_p101", "model:models/revision/teachers_round4/RT4_p303", "model:models/revision/students_round4/xn_s0.03_w500", "xylosim:models/revision/students_round4/xn_s0.03_w500", "model:models/revision/students_round4/xn_s0.03_w5000",
+              published, published_ann, published_gru,
+              "baseline:models/revision/baselines_round4/mlp_mean80_p101", "baseline:models/revision/baselines_round4/mlp_mean80_p202", "baseline:models/revision/baselines_round4/mlp_mean80_p303",
+              "baseline:models/revision/baselines_round4/mlp_mean16_p101", "baseline:models/revision/baselines_round4/mlp_mean16_p202", "baseline:models/revision/baselines_round4/mlp_mean16_p303",
+              "baseline:models/revision/baselines_round4/gru_raw80_p101", "baseline:models/revision/baselines_round4/gru_raw80_p202", "baseline:models/revision/baselines_round4/gru_raw80_p303",
+              "baseline:models/revision/baselines_round4/lstm_raw80_p101", "baseline:models/revision/baselines_round4/lstm_raw80_p202", "baseline:models/revision/baselines_round4/lstm_raw80_p303"]}
+    - {seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], win: "--window-ms 100",
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "constant:180,0.06,250", "constant:130,0.3,300", "dual_threshold:230,290", "integral:290,0.5,130,0.06"]}
+  parallel: 20
+
+final_robustness:
+  status: done
+  description: "Fixed policies under perturbation (cycling, 5 patients): disease severity 0.5-1.5, recording spike loss 10/30%, added noise 5/20 Hz per neuron, observation delay 1/3 windows"
+  outputs: data/revision/final_robustness
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol cycling --seed {seed} {pert} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024], win: "", pert: ["--pd-scale 0.5", "--pd-scale 0.75", "--pd-scale 1.25", "--pd-scale 1.5", "--obs-drop 0.1", "--obs-drop 0.3", "--obs-insert 5", "--obs-insert 20", "--obs-delay 1", "--obs-delay 3"],
+       ctrl: ["model:models/revision/teachers_round4/RT4_p202", "model:models/revision/students_round4/xn_s0.03_w500", "xylosim:models/revision/students_round4/xn_s0.03_w500", "baseline:models/revision/baselines_round4/mlp_mean80_p202", "baseline:models/revision/baselines_round4/gru_raw80_p202"]}
+    - {seed: [42, 123, 456, 789, 1024], win: "--window-ms 100", pert: ["--pd-scale 0.5", "--pd-scale 0.75", "--pd-scale 1.25", "--pd-scale 1.5", "--obs-drop 0.1", "--obs-drop 0.3", "--obs-insert 5", "--obs-insert 20", "--obs-delay 1", "--obs-delay 3"],
+       ctrl: [unstim, "constant:180,0.06,212", "dual_threshold:230,290", "integral:290,0.5,130,0.06", "oracle:180,0.06,250"]}
+  parallel: 20
+
+final_blocks:
+  status: done
+  description: "Cycling with 30 s and 120 s blocks and with randomised block lengths (60 s +- 50%), 5 patients"
+  outputs: data/revision/final_blocks
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol cycling --seed {seed} {blk} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024], win: "", blk: ["--block-s 30 --blocks 10", "--block-s 120 --blocks 3", "--block-jitter 0.5"],
+       ctrl: ["model:models/revision/teachers_round4/RT4_p202", "model:models/revision/students_round4/xn_s0.03_w500", "xylosim:models/revision/students_round4/xn_s0.03_w500", "baseline:models/revision/baselines_round4/mlp_mean80_p202", "baseline:models/revision/baselines_round4/gru_raw80_p202"]}
+    - {seed: [42, 123, 456, 789, 1024], win: "--window-ms 100", blk: ["--block-s 30 --blocks 10", "--block-s 120 --blocks 3", "--block-jitter 0.5"],
+       ctrl: [unstim, cdbs, "constant:180,0.06,212", "dual_threshold:230,290", "integral:290,0.5,130,0.06", "oracle:180,0.06,250"]}
+  parallel: 20
+
+simple_sweep:
+  status: done
+  description: "Parameter sweep for the simple comparators (cycling, 5 patients): dual threshold (lo/hi x on-setting cDBS or 180 Hz / 0.06 ms / 212 uA) and integral amplitude control (target x gain x 130 or 180 Hz at 0.06 ms); the best of each by the teacher-selection rule goes into the final tables"
+  outputs: data/revision/simple_sweep
+  template: python scripts/run_rev_eval.py --controller {ctrl} --window-ms 100 --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024],
+       ctrl: ["dual_threshold:200,250", "dual_threshold:230,290", "dual_threshold:250,330",
+              "dual_threshold:200,250,180,0.06,212", "dual_threshold:230,290,180,0.06,212", "dual_threshold:250,330,180,0.06,212",
+              "integral:250,0.5,130,0.06", "integral:250,2,130,0.06", "integral:250,5,130,0.06", "integral:290,2,130,0.06", "integral:290,5,130,0.06",
+              "integral:250,0.5,180,0.06", "integral:250,2,180,0.06", "integral:250,5,180,0.06", "integral:290,2,180,0.06", "integral:290,5,180,0.06",
+              unstim, cdbs]}
+  parallel: 10
+
+simple_sweep_smooth:
+  status: done
+  description: "Simple comparators given the same 1 s smoothing the reward uses (--ctrl-smooth 10: controllers observe the mean beta of the last 10 windows): dual threshold lo/hi x on-setting, integral target x gain at 180 Hz / 0.06 ms; cycling, 5 patients"
+  outputs: data/revision/simple_sweep
+  template: python scripts/run_rev_eval.py --controller {ctrl} --window-ms 100 --ctrl-smooth 10 --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024],
+       ctrl: ["dual_threshold:250,300", "dual_threshold:260,320", "dual_threshold:270,330",
+              "dual_threshold:250,300,180,0.06,212", "dual_threshold:260,320,180,0.06,212", "dual_threshold:270,330,180,0.06,212",
+              "integral:250,2,180,0.06", "integral:250,5,180,0.06", "integral:250,10,180,0.06",
+              "integral:270,2,180,0.06", "integral:270,5,180,0.06", "integral:270,10,180,0.06",
+              "integral:290,2,180,0.06", "integral:290,5,180,0.06", "integral:290,10,180,0.06"]}
+  parallel: 10
+
+simple_sweep_smooth2:
+  status: done
+  description: "Smoothed dual threshold with lower bands, to trace the simple controllers' beta-charge front against the SNN's operating point"
+  outputs: data/revision/simple_sweep
+  template: python scripts/run_rev_eval.py --controller {ctrl} --window-ms 100 --ctrl-smooth 10 --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024],
+       ctrl: ["dual_threshold:200,250", "dual_threshold:220,270", "dual_threshold:230,280", "dual_threshold:240,290",
+              "dual_threshold:200,250,180,0.06,212", "dual_threshold:220,270,180,0.06,212", "dual_threshold:230,280,180,0.06,212", "dual_threshold:240,290,180,0.06,212",
+              "dual_threshold:200,250,180,0.06,250", "dual_threshold:230,280,180,0.06,250"]}
+  parallel: 10
+
+teachers_round5:
+  status: done
+  description: "Hardened RT4 teachers on patient 202 after the robustness check showed that with 5 Hz of added background spikes the teachers_round4 policies stimulate constantly (they key on silent striatal D2 in healthy windows): RT4bg = observation restricted to STN/GPe/GPi (lead-realistic); RT4n = 5 Hz Poisson spikes added during training; RT4bgn = both"
+  outputs: models/revision/teachers_round5
+  template: python scripts/train_rev_teacher.py --pipeline corrected --env round3 --tau-beta 290 --beta-smooth 10 --energy-norm max --out-threshold 1e6 --reward-scale 3000 --q-scale auto --transitions --random-start --max-steps 100 {extra} --patient-seed 202 --run-name {arm}_p202 --out-root {out}
+  expect: "{out}/{arm}_p202/model.pth"
+  grid:
+    - {arm: RT4bg, extra: "--obs-keep stn,gpe,gpi"}
+    - {arm: RT4n, extra: "--obs-noise 5"}
+    - {arm: RT4bgn, extra: "--obs-keep stn,gpe,gpi --obs-noise 5"}
+  parallel: 3
+  gpus: [0, 1]
+
+final_severity:
+  status: done
+  description: "Mild disease states (pd 0.1 / 0.2 / 0.3: unstimulated beta 259 / 305 / 315 vs healthy 231 and full PD 345 on seed 42): does the policy stimulate when beta is only marginally above the healthy range? Cycling, 5 patients; simple controllers with the 1 s smoothing"
+  outputs: data/revision/final_robustness
+  template: python scripts/run_rev_eval.py --controller {ctrl} {win} --protocol cycling --seed {seed} --pd-scale {pd} --out {out}
+  grid:
+    - {seed: [42, 123, 456, 789, 1024], pd: [0.1, 0.2, 0.3], win: "",
+       ctrl: ["model:models/revision/teachers_round4/RT4_p202", "model:models/revision/students_round4/xn_s0.03_w500", "xylosim:models/revision/students_round4/xn_s0.03_w500", "baseline:models/revision/baselines_round4/mlp_mean80_p202", "baseline:models/revision/baselines_round4/gru_raw80_p202"]}
+    - {seed: [42, 123, 456, 789, 1024], pd: [0.1, 0.2, 0.3], win: "--window-ms 100", ctrl: [unstim, "constant:180,0.06,212", "oracle:180,0.06,250"]}
+    - {seed: [42, 123, 456, 789, 1024], pd: [0.1, 0.2, 0.3], win: "--window-ms 100 --ctrl-smooth 10", ctrl: ["dual_threshold:250,300,180,0.06,212", "integral:290,10,180,0.06"]}
+  parallel: 10
+
+eval_round5:
+  status: done
+  description: "Hardened teachers: cycling on the 10 patients, plus the perturbations under which the teachers_round4 policies lost state selectivity (added spikes 5 / 20 Hz, spike loss 30%) on the 5 evaluation patients"
+  outputs: data/revision/eval_round5
+  template: python scripts/run_rev_eval.py --controller model:models/revision/teachers_round5/{arm}_p202 --protocol cycling --seed {seed} {pert} --out {out}
+  grid:
+    - {arm: [RT4bg, RT4n, RT4bgn], seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], pert: ""}
+    - {arm: [RT4bg, RT4n, RT4bgn], seed: [42, 123, 456, 789, 1024], pert: ["--obs-insert 5", "--obs-insert 20", "--obs-drop 0.3", "--obs-delay 3"]}
+  parallel: 20
+
+teachers_round5b:
+  status: done
+  description: "Second hardening iteration after RT4bgn survived 5 Hz noise but not 30% spike loss: RT4bgnd = basal ganglia only + 5 Hz noise + 30% spike dropout in training; RT4bgn agent seed 2 (replicate)"
+  outputs: models/revision/teachers_round5
+  template: python scripts/train_rev_teacher.py --pipeline corrected --env round3 --tau-beta 290 --beta-smooth 10 --energy-norm max --out-threshold 1e6 --reward-scale 3000 --q-scale auto --transitions --random-start --max-steps 100 {extra} --patient-seed 202 --run-name {arm}_p202{suffix} --out-root {out}
+  expect: "{out}/{arm}_p202{suffix}/model.pth"
+  grid:
+    - {arm: RT4bgnd, suffix: "", extra: "--obs-keep stn,gpe,gpi --obs-noise 5 --obs-drop 0.3"}
+    - {arm: RT4bgn, suffix: "_s2", extra: "--obs-keep stn,gpe,gpi --obs-noise 5 --agent-seed 2"}
+  parallel: 2
+  gpus: [0, 1]
+
+eval_round5b:
+  status: done
+  description: "Screening of RT4bgnd and the RT4bgn replicate: cycling on 10 patients + the perturbations"
+  outputs: data/revision/eval_round5
+  template: python scripts/run_rev_eval.py --controller model:models/revision/teachers_round5/{arm} --protocol cycling --seed {seed} {pert} --out {out}
+  grid:
+    - {arm: [RT4bgnd_p202, RT4bgn_p202_s2], seed: [42, 123, 456, 789, 1024, 2048, 3141, 5678, 8192, 9999], pert: ""}
+    - {arm: [RT4bgnd_p202, RT4bgn_p202_s2], seed: [42, 123, 456, 789, 1024], pert: ["--obs-insert 5", "--obs-insert 20", "--obs-drop 0.3", "--obs-delay 3"]}
+  parallel: 20
+
+eval_mlp_int:
+  status: done
+  description: "The MLP baseline through the MCU package's int8 and int16 pipelines as closed-loop controllers (cycling, 5 patients): efficacy numbers for the fixed-point rows of Table 1"
+  outputs: data/revision/final_cycling
+  template: python scripts/run_rev_eval.py --controller {ctrl}:models/revision/baselines_round4/mlp_mean80_p202 --protocol cycling --seed {seed} --out {out}
+  grid:
+    - {ctrl: [baseline_int8, baseline_int16], seed: [42, 123, 456, 789, 1024]}
+  parallel: 10

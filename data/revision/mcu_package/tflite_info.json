@@ -1,0 +1,22 @@
+{
+ "keras_vs_reference_max_abs_diff": 2.8507466041105545e-05,
+ "tflite_f32": {
+  "bytes": 114044,
+  "decision_agreement": 1.0,
+  "max_abs_diff": 3.159121699525258e-05
+ },
+ "tflite_int8": {
+  "bytes": 37328,
+  "decision_agreement": 0.34,
+  "max_abs_diff": 0.9873540744832212,
+  "input_scale_zero_point": [
+   0.0007058823830448091,
+   -128
+  ],
+  "output_scale_zero_point": [
+   0.3511134684085846,
+   -128
+  ]
+ },
+ "onnx": "mlp_f32.onnx (opset 13)"
+}

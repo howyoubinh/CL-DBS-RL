@@ -1,0 +1,86 @@
+{
+ "run": "models/revision/students_round4/xn_s0.03_w500",
+ "mode": "accelerated time, Spike readout, no state recording",
+ "n_windows": 20,
+ "when": "2026-10-22T12:30:26",
+ "clocks": {
+  "6.25": {
+   "latency_s": {
+    "mean": 0.322208255995065,
+    "median": 0.3233126071281731,
+    "min": 0.30276514682918787,
+    "max": 0.3533583991229534
+   },
+   "power_W_processing": {
+    "Io": 6.253380570875326e-05,
+    "Io_n": 645,
+    "AnalogLogic": 1.210802127996842e-05,
+    "AnalogLogic_n": 645,
+    "DigitalLogic": 0.0007658435600637549,
+    "DigitalLogic_n": 645
+   },
+   "power_W_idle": {
+    "Io": 3.63122297200442e-05,
+    "Io_n": 300,
+    "AnalogLogic": 1.2096195928871459e-05,
+    "AnalogLogic_n": 300,
+    "DigitalLogic": 0.0006979952784327402,
+    "DigitalLogic_n": 300
+   },
+   "energy_per_window_J_core_x_latency": 0.00024676111785319424,
+   "energy_per_100ms_J_core_x_0.1": 7.65843560063755e-05
+  },
+  "25.0": {
+   "latency_s": {
+    "mean": 0.25616754363290967,
+    "median": 0.2530093169771135,
+    "min": 0.24957847502082586,
+    "max": 0.2632880639284849
+   },
+   "power_W_processing": {
+    "Io": 0.00016686801004523784,
+    "Io_n": 512,
+    "AnalogLogic": 1.2111583547754026e-05,
+    "AnalogLogic_n": 512,
+    "DigitalLogic": 0.002132182038122535,
+    "DigitalLogic_n": 512
+   },
+   "power_W_idle": {
+    "Io": 0.0001298455816700963,
+    "Io_n": 299,
+    "AnalogLogic": 1.2143127144789413e-05,
+    "AnalogLogic_n": 299,
+    "DigitalLogic": 0.002049547318798679,
+    "DigitalLogic_n": 300
+   },
+   "energy_per_window_J_core_x_latency": 0.0005461958352840607,
+   "energy_per_100ms_J_core_x_0.1": 0.0002132182038122535
+  },
+  "50.0": {
+   "latency_s": {
+    "mean": 0.2434335548430681,
+    "median": 0.24221204686909914,
+    "min": 0.23935160879045725,
+    "max": 0.2525846529752016
+   },
+   "power_W_processing": {
+    "Io": 0.00028445621772436977,
+    "Io_n": 488,
+    "AnalogLogic": 1.2146319647018744e-05,
+    "AnalogLogic_n": 488,
+    "DigitalLogic": 0.003941830172802647,
+    "DigitalLogic_n": 488
+   },
+   "power_W_idle": {
+    "Io": 0.00023819562384774307,
+    "Io_n": 300,
+    "AnalogLogic": 1.2065255553250999e-05,
+    "AnalogLogic_n": 300,
+    "DigitalLogic": 0.003851545802101235,
+    "DigitalLogic_n": 300
+   },
+   "energy_per_window_J_core_x_latency": 0.0009595737315530137,
+   "energy_per_100ms_J_core_x_0.1": 0.00039418301728026467
+  }
+ }
+}

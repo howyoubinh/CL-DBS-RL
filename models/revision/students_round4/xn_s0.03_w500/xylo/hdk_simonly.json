@@ -1,0 +1,8 @@
+{
+ "run": "models/revision/students_round4/xn_s0.03_w500",
+ "hw_config": "models/revision/students_round4/xn_s0.03_w500/xylo/hw_config.json",
+ "n_windows": 30,
+ "when": "2026-10-15T19:52:42",
+ "xylosim_vs_fp32_agreement": 0.8666666666666667,
+ "clocks": {}
+}

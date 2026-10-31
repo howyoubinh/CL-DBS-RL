@@ -1,0 +1,98 @@
+{
+ "rows": {
+  "xylo_6.25MHz": {
+   "E_window_J": 7.011627063764668e-05,
+   "P_core_W": 0.0007011627063764668,
+   "compute_s": 0.0893396438164421,
+   "real_time": true,
+   "source": "measured (core power x 100 ms; compute from monitoring-off fit)"
+  },
+  "xylo_12.5MHz": {
+   "E_window_J": 0.0001162064916159864,
+   "P_core_W": 0.0011620649161598639,
+   "compute_s": 0.04466982190822105,
+   "real_time": true,
+   "source": "measured (core power x 100 ms; compute from monitoring-off fit)"
+  },
+  "xylo_25MHz": {
+   "E_window_J": 0.0002055588493085243,
+   "P_core_W": 0.002055588493085243,
+   "compute_s": 0.022334910954110526,
+   "real_time": true,
+   "source": "measured (core power x 100 ms; compute from monitoring-off fit)"
+  },
+  "xylo_50MHz": {
+   "E_window_J": 0.0003855506755664828,
+   "P_core_W": 0.003855506755664828,
+   "compute_s": 0.011167455477055263,
+   "real_time": true,
+   "source": "measured (core power x 100 ms; compute from monitoring-off fit)"
+  },
+  "m7_mlp_int8": {
+   "E_window_J": 0.00036,
+   "E_inf_J": 0.00011,
+   "latency_s": 0.000311,
+   "source": "measured time, datasheet power (estimate)"
+  },
+  "m7_mlp_f32": {
+   "E_window_J": 0.00062,
+   "E_inf_J": 0.00037,
+   "latency_s": 0.001037,
+   "source": "measured time, datasheet power (estimate)"
+  },
+  "m7_snn_c": {
+   "E_window_J": 0.04248,
+   "latency_s": 0.118,
+   "real_time": false,
+   "source": "measured time (unoptimized C), datasheet power (estimate)"
+  },
+  "m4f_mlp_int8": {
+   "E_window_J": 5.517600000000001e-06,
+   "E_inf_J": 2.2176e-06,
+   "source": "estimate: measured cycles x 33 pJ/cycle + 10 uA sleep"
+  },
+  "m4f_mlp_f32": {
+   "E_window_J": 1.0690449e-05,
+   "E_inf_J": 7.3904489999999994e-06,
+   "source": "estimate: measured cycles x 33 pJ/cycle + 10 uA sleep"
+  },
+  "stim_cdbs": {
+   "E_window_J": 3.2000000000000005e-05,
+   "source": "clinical cDBS reference, drawn from the device (Methods)"
+  },
+  "stim_policy": {
+   "E_window_J": 3.2320000000000006e-06,
+   "source": "cDBS reference x measured charge fraction of the deployed student (10.1%)"
+  }
+ },
+ "xylo_latency_fit": {
+  "host_overhead_s": 0.23298911474114514,
+  "compute_s_times_MHz": 0.5583727738527632
+ },
+ "mcu": {
+  "P_active_W": 0.36,
+  "P_active_source": "STM32F746 datasheet typical, estimate",
+  "mlp_f32": {
+   "latency_s": 0.001037,
+   "cycles": 223953,
+   "E_inf_J": 0.00037,
+   "E_cycle_J": 0.00062
+  },
+  "mlp_int8": {
+   "latency_s": 0.000311,
+   "cycles": 67200,
+   "E_inf_J": 0.00011,
+   "E_cycle_J": 0.00036
+  },
+  "mlp_int16": {
+   "latency_s": 0.001153,
+   "cycles": 249000
+  },
+  "snn_c": {
+   "latency_s": 0.118,
+   "cycles": 25500000.0,
+   "E_inf_J": 0.04248
+  },
+  "wake_s": 0.000275
+ }
+}

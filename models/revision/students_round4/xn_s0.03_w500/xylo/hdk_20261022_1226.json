@@ -1,0 +1,40 @@
+{
+ "run": "models/revision/students_round4/xn_s0.03_w500",
+ "hw_config": "models/revision/students_round4/xn_s0.03_w500/xylo/hw_config.json",
+ "n_windows": 10,
+ "when": "2026-10-22T12:24:53",
+ "xylosim_vs_fp32_agreement": 0.9,
+ "xylosim_carried_vs_fp32_agreement": 0.8,
+ "chip_state": "carried across windows (reset_state is a no-op in rockpool 3.0.1)",
+ "clocks": {
+  "6.25": {
+   "latency_s": {
+    "mean": 2.7299980900250373,
+    "median": 2.7261539017781615,
+    "max": 2.7544790022075176
+   },
+   "power_W_inference": {
+    "Io": 0.0001124402270188934,
+    "Io_n": 2730,
+    "AnalogLogic": 1.212127265809516e-05,
+    "AnalogLogic_n": 2730,
+    "DigitalLogic": 0.0007011627063764668,
+    "DigitalLogic_n": 2730
+   },
+   "power_W_idle": {
+    "Io": 3.627022333939307e-05,
+    "Io_n": 300,
+    "AnalogLogic": 1.2167785874518756e-05,
+    "AnalogLogic_n": 300,
+    "DigitalLogic": 0.0006911381724969178,
+    "DigitalLogic_n": 300
+   },
+   "energy_per_inference_J": 0.0019141728492045405,
+   "energy_per_100ms_window_J": 0.0019141728492045405,
+   "real_time": false,
+   "chip_vs_xylosim_agreement": 0.9,
+   "chip_vs_xylosim_exact_q_fraction": 0.0,
+   "chip_vs_fp32_agreement": 0.7
+  }
+ }
+}

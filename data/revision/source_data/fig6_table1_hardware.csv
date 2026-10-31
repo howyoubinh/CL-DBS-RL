@@ -1,0 +1,12 @@
+item,energy_uJ_per_100ms_window,core_power_W,latency_or_compute_s,basis
+xylo_6.25MHz,70.12,0.0007011627063764668,0.0893396438164421,measured (core power x 100 ms; compute from monitoring-off fit)
+xylo_12.5MHz,116.21,0.0011620649161598639,0.04466982190822105,measured (core power x 100 ms; compute from monitoring-off fit)
+xylo_25MHz,205.56,0.002055588493085243,0.022334910954110526,measured (core power x 100 ms; compute from monitoring-off fit)
+xylo_50MHz,385.55,0.003855506755664828,0.011167455477055263,measured (core power x 100 ms; compute from monitoring-off fit)
+m7_mlp_int8,360.00,,0.000311,"measured time, datasheet power (estimate)"
+m7_mlp_f32,620.00,,0.001037,"measured time, datasheet power (estimate)"
+m7_snn_c,42480.00,,0.118,"measured time (unoptimized C), datasheet power (estimate)"
+m4f_mlp_int8,5.52,,,estimate: measured cycles x 33 pJ/cycle + 10 uA sleep
+m4f_mlp_f32,10.69,,,estimate: measured cycles x 33 pJ/cycle + 10 uA sleep
+stim_cdbs,32.00,,,"clinical cDBS reference, drawn from the device (Methods)"
+stim_policy,3.23,,,cDBS reference x measured charge fraction of the deployed student (10.1%)

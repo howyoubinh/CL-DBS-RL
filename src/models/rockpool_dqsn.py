@@ -15,8 +15,23 @@ from rockpool.parameters import Constant
 
 class RockpoolDQSN(nn.Module):
     def __init__(self, n_observations, num_hidden, beta, n_actions, num_steps, batch_size,
-                 input_width=80, use_mempot=False, target_sparsity=1.0, sparsity_weight=0.0, dt=10e-3):
+                 input_width=80, use_mempot=False, target_sparsity=1.0, sparsity_weight=0.0, dt=10e-3,
+                 out_threshold=1.0, linear_bias=True, tau_mem=100e-3, tau_syn=50e-3):
+        """linear_bias: biases on the linear layers (published). False gives a Xylo-native network
+        (the Xylo mapper drops linear biases; folding them into neuron biases is only approximate).
+        out_threshold: firing threshold of the output LIF layer. The default 1.0 is the published
+        network, whose output neurons spike and reset, so their membrane potential (the Q readout)
+        is pinned to [reset, 1] under strong drive. A large value (e.g. 1e6) makes the output a
+        non-spiking leaky integrator whose membrane potential can represent any Q scale.
+        tau_mem, tau_syn: LIF time constants (published: 100 ms, 50 ms)."""
         super(RockpoolDQSN, self).__init__()
+        self.out_threshold = out_threshold
+        self.linear_bias = linear_bias
+        self.tau_mem, self.tau_syn = tau_mem, tau_syn
+        # Q = sum_t Vmem / q_scale (src/utils/rev_rl_utils.q_values). 1.0 = the published readout; a
+        # non-spiking output integrates freely, so train_rev_teacher.py (--q-scale auto) sets q_scale
+        # from the initial Q spread on real windows to start the regression at O(1).
+        self.q_scale = 1.0
         self.num_steps = num_steps
         self.batch_size = batch_size
         self.use_mempot = use_mempot
@@ -25,18 +40,19 @@ class RockpoolDQSN(nn.Module):
         self.sparsity_weight = sparsity_weight
         self.beta = beta
 
-        tau_mem = Constant(100e-3)
-        tau_syn = Constant(50e-3)
+        tau_mem = Constant(float(tau_mem))
+        tau_syn = Constant(float(tau_syn))
         threshold = Constant(1.)
         bias = Constant(0.)
 
         self.model = Sequential(
-            LinearTorch(shape=(n_observations, num_hidden), has_bias=True),
+            LinearTorch(shape=(n_observations, num_hidden), has_bias=linear_bias),
             LIFTorch(shape=(num_hidden,), dt=self.dt, tau_mem=tau_mem, tau_syn=tau_syn, threshold=threshold, bias=bias),
-            LinearTorch(shape=(num_hidden, num_hidden), has_bias=True),
+            LinearTorch(shape=(num_hidden, num_hidden), has_bias=linear_bias),
             LIFTorch(shape=(num_hidden,), dt=self.dt, tau_mem=tau_mem, tau_syn=tau_syn, threshold=threshold, bias=bias),
-            LinearTorch(shape=(num_hidden, n_actions), has_bias=True),
-            LIFTorch(shape=(n_actions,), dt=self.dt, tau_mem=tau_mem, tau_syn=tau_syn, threshold=threshold, bias=bias)
+            LinearTorch(shape=(num_hidden, n_actions), has_bias=linear_bias),
+            LIFTorch(shape=(n_actions,), dt=self.dt, tau_mem=tau_mem, tau_syn=tau_syn,
+                     threshold=Constant(float(out_threshold)), bias=bias)
         )
 
     def forward(self, x, record=False):

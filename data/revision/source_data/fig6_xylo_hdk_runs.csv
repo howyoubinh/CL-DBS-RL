@@ -1,0 +1,9 @@
+file,mode,clock_MHz,n_windows,latency_mean_s,core_W_processing,core_W_idle,io_W,afe_W,chip_vs_xylosim_agreement,chip_vs_fp32_agreement
+hdk_20261022_1226.json,Vmem readout,6.25,10,2.7300,0.000701,0.000691,0.000112,0.000012,0.9,0.7
+hdk_20261022_1230.json,Vmem readout,12.5,5,2.6819,0.001155,0.001145,0.000143,0.000012,0.8,0.6
+hdk_20261022_1230.json,Vmem readout,25.0,5,2.6604,0.002056,0.002048,0.000208,0.000012,0.8,0.6
+hdk_20261022_1230.json,Vmem readout,50.0,5,2.6486,0.003856,0.003851,0.000335,0.000012,0.8,0.6
+hdk_20261022_1240.json,Vmem readout,12.5,100,2.6819,0.001162,0.001153,0.000144,0.000012,0.92,0.82
+hdk_timing_20261022_1232.json,"accelerated time, Spike readout, no state recording",6.25,20,0.3222,0.000766,0.000698,0.000063,0.000012,,
+hdk_timing_20261022_1232.json,"accelerated time, Spike readout, no state recording",25.0,20,0.2562,0.002132,0.002050,0.000167,0.000012,,
+hdk_timing_20261022_1232.json,"accelerated time, Spike readout, no state recording",50.0,20,0.2434,0.003942,0.003852,0.000284,0.000012,,

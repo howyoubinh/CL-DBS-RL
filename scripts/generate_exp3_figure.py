@@ -7,10 +7,11 @@ Combines Xylo and Jetson benchmark results into publication-quality figure.
 
 Usage:
     python scripts/generate_exp3_figure.py \
-        --xylo data/exp3_results/xylo_benchmark_*.csv \
-        --jetson-cpu data/exp3_results/jetson_benchmark_cpu.csv \
-        --jetson-cuda data/exp3_results/jetson_benchmark_cuda.csv \
+        --xylo data/exp3_results/xylo_benchmark_<timestamp>.csv \
+        --jetson data/exp3_results/jetson_ann_rnn_benchmark_<timestamp>.csv \
         --output figures/exp3_hardware_comparison.png
+
+Without --xylo / --jetson, the latest matching CSVs in data/exp3_results are used.
 """
 
 import pandas as pd
@@ -31,7 +32,7 @@ def load_xylo_results(csv_path):
         results[model_name] = {
             'latency_ms': model_df['latency_ms'].mean(),
             'latency_std': model_df['latency_ms'].std(),
-            'power_mw': model_df['inf_power_snn_W'].mean() * 1000,  # Convert to mW
+            'power_mw': model_df['inf_power_snn_W'].mean() * 1000,
             'power_std': model_df['inf_power_snn_W'].std() * 1000,
             'edp': model_df['edp'].mean(),
             'edp_std': model_df['edp'].std(),
@@ -47,7 +48,7 @@ def load_jetson_results(csv_path, device_name):
         device_name: {
             'latency_ms': df['latency_ms'].mean(),
             'latency_std': df['latency_ms'].std(),
-            'power_mw': df['power_w'].mean() * 1000,  # Convert to mW
+            'power_mw': df['power_w'].mean() * 1000,
             'power_std': df['power_w'].std() * 1000,
             'edp': df['edp'].mean(),
             'edp_std': df['edp'].std(),
@@ -69,7 +70,7 @@ def load_jetson_by_type(csv_path):
         out[str(mtype).upper()] = {
             'latency_ms': d['latency_ms'].mean(),
             'latency_std': d['latency_ms'].std(),
-            'power_mw': d['power_w'].mean() * 1000,  # Convert to mW
+            'power_mw': d['power_w'].mean() * 1000,
             'power_std': d['power_w'].std() * 1000,
             'edp': d['edp'].mean(),
             'edp_std': d['edp'].std(),
@@ -80,7 +81,7 @@ def load_jetson_by_type(csv_path):
 def generate_figure(xylo_results, jetson_results, output_path):
     """Generate publication-quality hardware comparison figure."""
     
-    # --- SNN / ANN / RNN figure (matches exp3_hardware_comparison_06-11) ---
+    # --- SNN / ANN / RNN figure ---
     # SNN  = distilled Student on Xylo;  ANN/RNN = Jetson Orin Nano (CUDA).
     # xylo_results: {'SNN': {...}}  |  jetson_results: {'ANN': {...}, 'RNN': {...}}
     all_results = {}
@@ -93,7 +94,6 @@ def generate_figure(xylo_results, jetson_results, output_path):
     model_names = list(all_results.keys())   # ['SNN', 'ANN', 'RNN']
     n_models = len(model_names)
 
-    # Extract data
     latencies = [all_results[m]['latency_ms'] for m in model_names]
     latency_stds = [all_results[m]['latency_std'] for m in model_names]
     powers = [all_results[m]['power_mw'] for m in model_names]
@@ -105,7 +105,6 @@ def generate_figure(xylo_results, jetson_results, output_path):
     BAR_COLORS = {'SNN': '#27ae60', 'ANN': '#9b59b6', 'RNN': '#e67e22'}
     colors = [BAR_COLORS.get(m, '#7f8c8d') for m in model_names]
 
-    # Create figure
     plt.rcParams.update({
         'xtick.labelsize': 14,
         'ytick.labelsize': 14,
@@ -122,7 +121,7 @@ def generate_figure(xylo_results, jetson_results, output_path):
     bars1 = ax1.bar(x, latencies, bar_width, yerr=latency_stds,
                     color=colors, capsize=5, edgecolor='black', linewidth=1.2)
     ax1.set_ylabel('Latency (ms)', fontsize=16, fontweight='bold')
-    ax1.set_title('A) Inference Latency', fontsize=18, fontweight='bold')
+    ax1.set_title('A', loc='left', fontsize=18, fontweight='bold')
     ax1.set_xticks(x)
     ax1.set_xticklabels(model_names, fontsize=14, rotation=0)
     ax1.set_yscale('log')
@@ -141,7 +140,7 @@ def generate_figure(xylo_results, jetson_results, output_path):
     bars2 = ax2.bar(x, powers, bar_width, yerr=power_stds,
                     color=colors, capsize=5, edgecolor='black', linewidth=1.2)
     ax2.set_ylabel('Power (mW)', fontsize=16, fontweight='bold')
-    ax2.set_title('B) Power Consumption', fontsize=18, fontweight='bold')
+    ax2.set_title('B', loc='left', fontsize=18, fontweight='bold')
     ax2.set_xticks(x)
     ax2.set_xticklabels(model_names, fontsize=14, rotation=0)
     ax2.set_yscale('log')
@@ -162,8 +161,8 @@ def generate_figure(xylo_results, jetson_results, output_path):
     ax3 = axes[2]
     bars3 = ax3.bar(x, edps, bar_width, yerr=edp_stds, capsize=5,
                     color=colors, edgecolor='black', linewidth=1.2)
-    ax3.set_ylabel('Energy (J)', fontsize=16, fontweight='bold')
-    ax3.set_title('C) Energy per Inference', fontsize=18, fontweight='bold')
+    ax3.set_ylabel('Energy per inference (J)', fontsize=16, fontweight='bold')
+    ax3.set_title('C', loc='left', fontsize=18, fontweight='bold')
     ax3.set_xticks(x)
     ax3.set_xticklabels(model_names, fontsize=14, rotation=0)
     ax3.set_yscale('log')
@@ -177,12 +176,11 @@ def generate_figure(xylo_results, jetson_results, output_path):
                 f'{val:.1e}', ha='center', va='bottom', fontsize=10, fontweight='bold')
     ax3.set_ylim(top=max(v + e for v, e in zip(edps, edp_stds)) * 3)
 
-    # Add legend
     from matplotlib.patches import Patch
     legend_labels = {
-        'SNN': 'SNN Best Student (Xylo Audio SNN Core)',
-        'ANN': 'ANN CUDA (Jetson Orin Nano)',
-        'RNN': 'RNN CUDA (Jetson Orin Nano)',
+        'SNN': 'SNN student (XyloAudio 3 core)',
+        'ANN': 'Feedforward network, ANN (Jetson Orin Nano, CUDA)',
+        'RNN': 'Recurrent network, GRU (Jetson Orin Nano, CUDA)',
     }
     legend_elements = [
         Patch(facecolor=BAR_COLORS[m], edgecolor='black', label=legend_labels[m])
@@ -193,7 +191,6 @@ def generate_figure(xylo_results, jetson_results, output_path):
 
     plt.tight_layout(rect=[0, 0.05, 1, 0.95])
     
-    # Save
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"Figure saved to: {output_path}")
@@ -211,7 +208,6 @@ def print_summary(xylo_results, jetson_results):
     print("EXPERIMENT 3: HARDWARE BENCHMARK SUMMARY")
     print("="*80)
     
-    # Get reference values
     teacher = xylo_results.get('teacher', {})
     
     print(f"\n{'Model':<30} {'Latency (ms)':<15} {'Power (mW)':<15} {'Energy/inf (J)':<15}")
@@ -285,10 +281,8 @@ def main():
         timestamp = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
         args.output = f'data/exp3_results/exp3_hardware_comparison_{timestamp}.png'
     
-    # Print summary
     print_summary(xylo_results, jetson_results)
     
-    # Generate figure
     generate_figure(xylo_results, jetson_results, args.output)
 
 
